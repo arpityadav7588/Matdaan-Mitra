@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserCheck, ShieldCheck, Search, Info } from 'lucide-react';
+import { UserCheck, ShieldCheck, Search } from 'lucide-react';
+
 import CryptoJS from 'crypto-js';
 import { PretextLayout } from '../components/PretextLayout';
+import { API_BASE_URL } from '../constants';
+
 
 const Eligibility: React.FC = () => {
   const [voterId, setVoterId] = useState('');
@@ -25,7 +28,8 @@ const Eligibility: React.FC = () => {
       const hashedId = CryptoJS.SHA256(voterId.trim().toUpperCase()).toString();
 
       // Step 2: API Call
-      const response = await fetch('http://localhost:5000/api/eligibility', {
+      const response = await fetch(`${API_BASE_URL}/eligibility`, {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hashedId })

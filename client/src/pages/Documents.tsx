@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileCheck, Camera, CheckCircle2, AlertCircle, X, Image as ImageIcon, UploadCloud } from 'lucide-react';
+import { FileCheck, Camera, CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 const Documents: React.FC = () => {
   const [docs, setDocs] = useState([
@@ -9,17 +9,15 @@ const Documents: React.FC = () => {
     { id: 3, name: 'Passport', status: 'pending', required: false },
   ]);
   const [preview, setPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   const toggleDoc = (id: number) => {
     setDocs(prev => prev.map(d => d.id === id ? { ...d, status: d.status === 'done' ? 'pending' : 'done' } : d));
   };
 
   const simulateCapture = () => {
-    setUploading(true);
+    // Simulated upload delay
     setTimeout(() => {
       setPreview('https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=400');
-      setUploading(false);
     }, 1500);
   };
 

@@ -11,8 +11,7 @@ interface TimelineEvent {
 }
 
 const Timeline: React.FC = () => {
-  const [events, setEvents] = useState<TimelineEvent[]>(MOCK_TIMELINE);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<TimelineEvent[]>(MOCK_TIMELINE as unknown as TimelineEvent[]);
 
   const fetchTimeline = async () => {
     try {
@@ -26,7 +25,6 @@ const Timeline: React.FC = () => {
       }
       return MOCK_TIMELINE;
     } catch (error) {
-      // Log the specific error to help distinguish between CORS, Network, or Syntax issues
       console.error("Failed to fetch timeline, using mock data:", error);
       return MOCK_TIMELINE; 
     }
@@ -34,10 +32,8 @@ const Timeline: React.FC = () => {
 
   useEffect(() => {
     const loadTimeline = async () => {
-      setLoading(true);
       const data = await fetchTimeline();
-      setEvents(data);
-      setLoading(false);
+      setEvents(data as TimelineEvent[]);
     };
 
     loadTimeline();

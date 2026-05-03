@@ -10,6 +10,15 @@ interface PretextCanvasProps {
   color?: string;
 }
 
+interface PretextLine {
+  text: string;
+}
+
+interface LayoutResult {
+  height: number;
+  lines: PretextLine[];
+}
+
 const PretextCanvas: React.FC<PretextCanvasProps> = ({ 
   text, 
   width, 
@@ -27,8 +36,9 @@ const PretextCanvas: React.FC<PretextCanvasProps> = ({
   }, [text, fontSpec]);
 
   // Step 2: Layout (Calculate lines based on width)
-  const layoutResult = useMemo(() => {
-    return layout(prepared, width, fontSize * lineHeight);
+  const layoutResult = useMemo<LayoutResult>(() => {
+    const res = layout(prepared, width, fontSize * lineHeight);
+    return res as unknown as LayoutResult;
   }, [prepared, width, fontSize, lineHeight]);
 
   // Step 3: Draw to Canvas
@@ -52,7 +62,7 @@ const PretextCanvas: React.FC<PretextCanvasProps> = ({
     ctx.textBaseline = 'top';
 
     // Draw each line from the layout result
-    layoutResult.lines.forEach((line, index) => {
+    layoutResult.lines.forEach((line: PretextLine, index: number) => {
       ctx.fillText(line.text, 0, index * fontSize * lineHeight);
     });
   }, [layoutResult, width, fontSpec, color, fontSize, lineHeight]);

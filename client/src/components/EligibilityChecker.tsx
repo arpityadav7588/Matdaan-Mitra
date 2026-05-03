@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, CheckCircle, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '../constants';
+
 
 async function hashVoterId(id: string) {
   const encoder = new TextEncoder();
@@ -24,7 +26,8 @@ const EligibilityChecker: React.FC = () => {
 
     try {
       const hashedId = await hashVoterId(voterId);
-      const res = await fetch('http://localhost:5000/api/eligibility', {
+      const res = await fetch(`${API_BASE_URL}/eligibility`, {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hashedId })

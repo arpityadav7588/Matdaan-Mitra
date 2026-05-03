@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, ArrowRight, Shield, MapPin, Search } from 'lucide-react';
+import { ArrowRight, Shield, MapPin, Search } from 'lucide-react';
 import Timeline from '../components/Timeline';
 
 const Home: React.FC = () => {
@@ -64,20 +64,18 @@ const Home: React.FC = () => {
           icon={<MapPin className="text-indigo-eci" />} 
           title="Find Booth" 
           desc="Locate your polling station" 
-          to="/verify"
         />
         <QuickActionCard 
           icon={<Search className="text-green-eci" />} 
           title="Candidates" 
           desc="Who's contesting?" 
-          to="/candidates"
         />
       </section>
     </div>
   );
 };
 
-const QuickActionCard = ({ icon, title, desc, to }: any) => (
+const QuickActionCard = ({ icon, title, desc }: any) => (
   <motion.div 
     whileHover={{ y: -5 }}
     whileTap={{ scale: 0.98 }}

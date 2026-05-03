@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { MessageSquare, Mic, MicOff, Send, Volume2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { MessageSquare, Mic, MicOff, Send } from 'lucide-react';
+import { API_BASE_URL } from '../constants';
+
 
 const AIChat: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -31,7 +32,8 @@ const AIChat: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/chat', {
+      const res = await fetch(`${API_BASE_URL}/chat`, {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: userMsg, mode: 'flash' })
@@ -87,7 +89,7 @@ const AIChat: React.FC = () => {
           type="text" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+          onKeyPress={(e: any) => e.key === 'Enter' && sendMessage()}
           placeholder="Ask about voting, documents, or candidates..."
           className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#FF9933] outline-none"
         />

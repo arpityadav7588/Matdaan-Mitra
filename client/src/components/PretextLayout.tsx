@@ -11,6 +11,15 @@ interface PretextProps {
   className?: string;
 }
 
+interface PretextLine {
+  text: string;
+}
+
+interface LayoutResult {
+  height: number;
+  lines: PretextLine[];
+}
+
 /**
  * PretextLayout
  * Premium zero-reflow text rendering component.
@@ -39,9 +48,10 @@ export const PretextLayout: React.FC<PretextProps> = ({
   }, [text, fontSpec]);
 
   // 2. Calculate layout
-  const layoutResult = useMemo(() => {
+  const layoutResult = useMemo<LayoutResult>(() => {
     if (!prepared) return { height: 0, lines: [] };
-    return layout(prepared, width, fontSize * lineHeight);
+    const res = layout(prepared, width, fontSize * lineHeight);
+    return res as unknown as LayoutResult;
   }, [prepared, width, fontSize, lineHeight]);
 
   // 3. Render to Canvas
@@ -69,7 +79,7 @@ export const PretextLayout: React.FC<PretextProps> = ({
     
     ctx.textBaseline = 'top';
 
-    layoutResult.lines.forEach((line, index) => {
+    layoutResult.lines.forEach((line: PretextLine, index: number) => {
       ctx.fillText(line.text, 0, index * fontSize * lineHeight);
     });
   }, [layoutResult, width, fontSpec, color, fontSize, lineHeight]);
@@ -87,4 +97,3 @@ export const PretextLayout: React.FC<PretextProps> = ({
     </div>
   );
 };
-

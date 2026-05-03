@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, X, Send, Volume2, Loader2, Languages } from 'lucide-react';
+import { Mic, X, Languages } from 'lucide-react';
+
 import { PretextLayout } from './PretextLayout';
 import { API_BASE_URL } from '../constants';
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, Info, Scale, GraduationCap, Search, ExternalLink } from 'lucide-react';
 import { PretextLayout } from '../components/PretextLayout';

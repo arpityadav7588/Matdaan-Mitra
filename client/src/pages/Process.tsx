@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Fingerprint, CheckCircle2, QrCode, FileText, ChevronDown, Landmark, ShieldCheck, Loader2 } from 'lucide-react';
+import { Fingerprint, CheckCircle2, QrCode, FileText, ChevronDown, Landmark, ShieldCheck } from 'lucide-react';
 import { PretextLayout } from '../components/PretextLayout';
 import { API_BASE_URL } from '../constants';
 
@@ -34,7 +34,6 @@ const DEFAULT_STEPS = [
 const Process: React.FC = () => {
   const [expanded, setExpanded] = useState<number | null>(0);
   const [steps, setSteps] = useState(DEFAULT_STEPS);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProcess = async () => {
@@ -51,8 +50,6 @@ const Process: React.FC = () => {
         }
       } catch (err) {
         console.error('Failed to fetch voting process');
-      } finally {
-        setLoading(false);
       }
     };
     fetchProcess();

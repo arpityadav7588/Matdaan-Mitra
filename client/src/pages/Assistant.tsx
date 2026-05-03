@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, User, Mic, StopCircle, RefreshCcw } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Send, Bot } from 'lucide-react';
 import { PretextLayout } from '../components/PretextLayout';
 import { API_BASE_URL } from '../constants';
 
@@ -125,7 +125,7 @@ const Assistant: React.FC = () => {
             type="text" 
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            onKeyPress={(e: any) => e.key === 'Enter' && handleSend()}
             placeholder="Ask about voting, documents, or candidates..."
             className="flex-1 px-5 py-4 bg-gray-100 dark:bg-gray-800 border-none rounded-2xl outline-none focus:ring-2 focus:ring-saffron transition-all dark:text-white font-medium"
           />
