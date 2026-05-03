@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ECI-VOTER-REG",
+    "text": "Every Indian citizen who has attained the age of 18 years on the qualifying date (presently 1st January, 1st April, 1st July and 1st October of the year) is eligible to be registered as a voter in the electoral roll. Registration is done via Form 6.",
+    "source": "ECI Handbook for Voters, Chapter 1.1"
+  },
+  {
+    "id": "ECI-EVM-SEC",
+    "text": "Electronic Voting Machines (EVMs) are stand-alone machines without any network connectivity (no internet, no bluetooth, no wifi). They are tamper-proof and have been used in all elections since 2004. VVPAT (Voter Verifiable Paper Audit Trail) allows voters to verify their vote for 7 seconds.",
+    "source": "ECI Manual on EVM and VVPAT, Section 2.1"
+  },
+  {
+    "id": "ECI-POLLING-STATION",
+    "text": "The polling station should ideally be within 2km of the voter's residence. Facilities like drinking water, ramps for PwD (Persons with Disabilities), and separate queues for senior citizens are mandatory.",
+    "source": "ECI Handbook for Presiding Officers, Chapter 3"
+  },
+  {
+    "id": "ECI-ID-DOCS",
+    "text": "Besides EPIC (Voter ID), 12 alternative documents are accepted for identity verification: Aadhaar Card, MGNREGA Job Card, Passbooks with photo issued by Bank/Post Office, Health Insurance Smart Card, Driving License, PAN Card, Smart Card issued by RGI under NPR, Passport, Pension document with photo, Service ID Card, Official ID Card for MPs/MLAs/MLCs, and Unique Disability ID (UDID) Card.",
+    "source": "ECI Notification on Identity Verification, 2024"
+  },
+  {
+    "id": "ECI-MCC",
+    "text": "The Model Code of Conduct (MCC) is a set of guidelines issued by the Election Commission of India for conduct of political parties and candidates during elections mainly with respect to speeches, polling day, polling booths, election manifestos, processions and general conduct.",
+    "source": "ECI Manual on Model Code of Conduct, Introduction"
+  },
+  {
+    "id": "ECI-VVPAT-SLIP",
+    "text": "The VVPAT slip contains the serial number, name and symbol of the candidate for whom the vote was cast. It remains visible in the viewing window for 7 seconds before dropping into the sealed box.",
+    "source": "ECI Technical Guide on VVPAT, Section 4.2"
+  }
+]
