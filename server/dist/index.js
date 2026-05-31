@@ -15,6 +15,9 @@ const security_middleware_1 = require("./middleware/security.middleware");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
+// ============================================================================
+// Security Middleware Configuration
+// ============================================================================
 // 1. Core Security Headers (HSTS, CSP, etc.)
 app.use((0, helmet_1.default)({
     contentSecurityPolicy: {
@@ -45,7 +48,6 @@ app.use((0, cors_1.default)({
     },
     credentials: true
 }));
-app.use(express_1.default.json({ limit: '1mb' })); // Limit JSON payload size
 // 4. Input Sanitization
 app.use(security_middleware_1.SecurityMiddleware.sanitizeInput);
 // 5. Rate Limiting
@@ -57,20 +59,32 @@ const limiter = (0, express_rate_limit_1.default)({
     legacyHeaders: false,
 });
 app.use(limiter);
-// Guardrail Middleware for AI
+// ============================================================================
+// AI Guardrail Middleware
+// ============================================================================
 const guardrailMiddleware = (req, res, next) => {
     const { query } = req.body;
     if (query && ai_service_1.AIService.isBiased(query)) {
-        return res.json({
+        res.json({
             success: true,
             response: "I can only provide factual election information. For opinions, please consult official sources."
         });
+        return;
     }
     next();
 };
+// ============================================================================
+// API Routes
+// ============================================================================
+/**
+ * Health check endpoint
+ */
 app.get('/api/health', (req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
+/**
+ * Check voter eligibility by hashed ID
+ */
 app.post('/api/eligibility', (req, res) => {
     const validation = schemas_1.eligibilitySchema.safeParse(req.body);
     if (!validation.success) {
@@ -79,27 +93,44 @@ app.post('/api/eligibility', (req, res) => {
     const { hashedId } = validation.data;
     // Mock check for demo
     if (hashedId.startsWith('2d7116')) {
-        return res.json({
+        res.json({
             success: true,
-            data: { name: 'Rahul Kumar', booth: 'Booth #12, KV Sector 2', date: '2026-06-01', verified: true }
+            data: {
+                name: 'Rahul Kumar',
+                booth: 'Booth #12, KV Sector 2',
+                date: '2026-06-01',
+                verified: true
+            }
         });
+        return;
     }
     res.status(404).json({ success: false, message: 'No record found' });
 });
+/**
+ * Get candidates by constituency
+ */
 app.get('/api/candidates', async (req, res) => {
     const validation = schemas_1.candidateQuerySchema.safeParse(req.query);
-    if (!validation.success)
+    if (!validation.success) {
         return res.status(400).json({ success: false, errors: validation.error.format() });
+    }
     const data = await data_service_1.DataService.getCandidates(validation.data.constituency);
     res.json({ success: true, data });
 });
+/**
+ * Get voting process steps in specified language
+ */
 app.get('/api/process', async (req, res) => {
     const validation = schemas_1.processQuerySchema.safeParse(req.query);
-    if (!validation.success)
+    if (!validation.success) {
         return res.status(400).json({ success: false, errors: validation.error.format() });
+    }
     const data = await data_service_1.DataService.getVotingSteps(validation.data.lang);
     res.json({ success: true, data });
 });
+/**
+ * Upload document endpoint (secured)
+ */
 app.post('/api/upload', security_middleware_1.SecurityMiddleware.validateUpload, (req, res) => {
     res.json({
         success: true,
@@ -107,22 +138,33 @@ app.post('/api/upload', security_middleware_1.SecurityMiddleware.validateUpload,
         url: 'https://storage.googleapis.com/matdaan-mitra/verified_doc.jpg'
     });
 });
+/**
+ * AI chat endpoint with guardrails
+ */
 app.post('/api/ask', guardrailMiddleware, async (req, res) => {
     const validation = schemas_1.chatSchema.safeParse(req.body);
-    if (!validation.success)
+    if (!validation.success) {
         return res.status(400).json({ success: false, errors: validation.error.format() });
+    }
     try {
         const response = await ai_service_1.AIService.askFlash(validation.data.query);
         res.json({ success: true, response });
     }
     catch (error) {
+        console.error('AI Service Error:', error);
         res.status(500).json({ success: false, message: 'AI Assistant Busy' });
     }
 });
+/**
+ * Get election timeline
+ */
 app.get('/api/timeline', async (req, res) => {
     const data = await data_service_1.DataService.getTimeline();
     res.json({ success: true, data });
 });
+// ============================================================================
+// Server Startup
+// ============================================================================
 app.listen(PORT, async () => {
     await ai_service_1.AIService.initialize();
     console.log(`Matdaan Mitra Backend (TS) secured and running on port ${PORT}`);

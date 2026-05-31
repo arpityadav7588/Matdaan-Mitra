@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -12,6 +12,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// ============================================================================
+// Security Middleware Configuration
+// ============================================================================
 
 // 1. Core Security Headers (HSTS, CSP, etc.)
 app.use(helmet({
@@ -46,8 +50,6 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '1mb' })); // Limit JSON payload size
-
 // 4. Input Sanitization
 app.use(SecurityMiddleware.sanitizeInput);
 
@@ -61,54 +63,90 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Guardrail Middleware for AI
-const guardrailMiddleware = (req: Request, res: Response, next: any) => {
+// ============================================================================
+// AI Guardrail Middleware
+// ============================================================================
+
+const guardrailMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   const { query } = req.body;
   if (query && AIService.isBiased(query)) {
-    return res.json({ 
+    res.json({ 
       success: true, 
       response: "I can only provide factual election information. For opinions, please consult official sources." 
     });
+    return;
   }
   next();
 };
 
+// ============================================================================
+// API Routes
+// ============================================================================
+
+/**
+ * Health check endpoint
+ */
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+/**
+ * Check voter eligibility by hashed ID
+ */
 app.post('/api/eligibility', (req: Request, res: Response) => {
   const validation = eligibilitySchema.safeParse(req.body);
   if (!validation.success) {
     return res.status(400).json({ success: false, errors: validation.error.format() });
   }
+  
   const { hashedId } = validation.data;
+  
   // Mock check for demo
   if (hashedId.startsWith('2d7116')) {
-    return res.json({ 
+    res.json({ 
       success: true, 
-      data: { name: 'Rahul Kumar', booth: 'Booth #12, KV Sector 2', date: '2026-06-01', verified: true } 
+      data: { 
+        name: 'Rahul Kumar', 
+        booth: 'Booth #12, KV Sector 2', 
+        date: '2026-06-01', 
+        verified: true 
+      } 
     });
+    return;
   }
+  
   res.status(404).json({ success: false, message: 'No record found' });
 });
 
+/**
+ * Get candidates by constituency
+ */
 app.get('/api/candidates', async (req: Request, res: Response) => {
   const validation = candidateQuerySchema.safeParse(req.query);
-  if (!validation.success) return res.status(400).json({ success: false, errors: validation.error.format() });
+  if (!validation.success) {
+    return res.status(400).json({ success: false, errors: validation.error.format() });
+  }
   
   const data = await DataService.getCandidates(validation.data.constituency);
   res.json({ success: true, data });
 });
 
+/**
+ * Get voting process steps in specified language
+ */
 app.get('/api/process', async (req: Request, res: Response) => {
   const validation = processQuerySchema.safeParse(req.query);
-  if (!validation.success) return res.status(400).json({ success: false, errors: validation.error.format() });
+  if (!validation.success) {
+    return res.status(400).json({ success: false, errors: validation.error.format() });
+  }
 
   const data = await DataService.getVotingSteps(validation.data.lang as any);
   res.json({ success: true, data });
 });
 
+/**
+ * Upload document endpoint (secured)
+ */
 app.post('/api/upload', SecurityMiddleware.validateUpload, (req: Request, res: Response) => {
   res.json({ 
     success: true, 
@@ -117,22 +155,35 @@ app.post('/api/upload', SecurityMiddleware.validateUpload, (req: Request, res: R
   });
 });
 
+/**
+ * AI chat endpoint with guardrails
+ */
 app.post('/api/ask', guardrailMiddleware, async (req: Request, res: Response) => {
   const validation = chatSchema.safeParse(req.body);
-  if (!validation.success) return res.status(400).json({ success: false, errors: validation.error.format() });
+  if (!validation.success) {
+    return res.status(400).json({ success: false, errors: validation.error.format() });
+  }
 
   try {
     const response = await AIService.askFlash(validation.data.query);
     res.json({ success: true, response });
   } catch (error) {
+    console.error('AI Service Error:', error);
     res.status(500).json({ success: false, message: 'AI Assistant Busy' });
   }
 });
 
+/**
+ * Get election timeline
+ */
 app.get('/api/timeline', async (req: Request, res: Response) => {
   const data = await DataService.getTimeline();
   res.json({ success: true, data });
 });
+
+// ============================================================================
+// Server Startup
+// ============================================================================
 
 app.listen(PORT, async () => {
   await AIService.initialize();

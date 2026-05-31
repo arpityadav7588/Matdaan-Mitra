@@ -1,13 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
 import DOMPurify from 'isomorphic-dompurify';
 
+interface SanitizableObject {
+  [key: string]: any;
+}
+
 export class SecurityMiddleware {
   /**
    * Sanitizes all string inputs in req.body, req.query, and req.params
    * to prevent XSS and injection attacks.
    */
-  static sanitizeInput(req: Request, res: Response, next: NextFunction) {
-    const sanitize = (obj: any) => {
+  static sanitizeInput(req: Request, res: Response, next: NextFunction): void {
+    const sanitize = (obj: SanitizableObject): void => {
       for (const key in obj) {
         if (typeof obj[key] === 'string') {
           obj[key] = DOMPurify.sanitize(obj[key].trim());
@@ -26,7 +30,7 @@ export class SecurityMiddleware {
   /**
    * Validates file upload metadata (mime type and size)
    */
-  static validateUpload(req: Request, res: Response, next: NextFunction) {
+  static validateUpload(req: Request, res: Response, next: NextFunction): void {
     // In a real implementation with multer, check req.file
     // For this mock, we validate the concept
     const allowedTypes = ['image/jpeg', 'image/png'];
@@ -39,7 +43,7 @@ export class SecurityMiddleware {
   /**
    * Enforces HTTPS by redirecting HTTP requests
    */
-  static forceHttps(req: Request, res: Response, next: NextFunction) {
+  static forceHttps(req: Request, res: Response, next: NextFunction): void {
     if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
       return res.redirect(`https://${req.headers.host}${req.url}`);
     }

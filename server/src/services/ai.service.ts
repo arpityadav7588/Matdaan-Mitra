@@ -14,9 +14,14 @@ interface Fact {
   embedding?: number[];
 }
 
+interface SimilarityResult extends Fact {
+  score: number;
+}
+
 export class AIService {
   private static knowledgeBase: Fact[] = [];
-  private static systemPrompt = `
+  
+  private static readonly SYSTEM_PROMPT = `
     You are Matdaan Mitra, a strictly neutral AI assistant for the Election Commission of India.
     Your mission is to provide accurate, factual, and unbiased information about the Indian election process.
 
@@ -29,21 +34,42 @@ export class AIService {
     5. MULTILINGUAL: If the user asks in Hindi, Tamil, or Telugu, respond accurately in that language while following all rules.
   `;
 
-  static async initialize() {
+  private static readonly BIAS_KEYWORDS = [
+    'best candidate', 
+    'who should i vote for', 
+    'which party', 
+    'is bjp', 
+    'is congress', 
+    'modi vs', 
+    'rahul vs', 
+    'party is better', 
+    'vote to', 
+    'better party', 
+    'who will win'
+  ];
+
+  /**
+   * Initialize AI service and load knowledge base
+   */
+  static async initialize(): Promise<void> {
     const dataPath = path.join(__dirname, '../data/election_facts.json');
+    
     if (fs.existsSync(dataPath)) {
       this.knowledgeBase = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
       console.log(`📚 AI Service initialized with ${this.knowledgeBase.length} fact chunks.`);
       
-      // Proactively embed chunks if API key is present
       if (process.env.GEMINI_API_KEY) {
         await this.embedKnowledgeBase();
       }
     }
   }
 
-  private static async embedKnowledgeBase() {
+  /**
+   * Generate embeddings for knowledge base
+   */
+  private static async embedKnowledgeBase(): Promise<void> {
     const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+    
     for (const fact of this.knowledgeBase) {
       try {
         const result = await model.embedContent(fact.text);
@@ -52,33 +78,45 @@ export class AIService {
         console.warn(`Failed to embed chunk ${fact.id}`);
       }
     }
+    
     console.log('✅ Knowledge base embedded for RAG.');
   }
 
-  private static cosineSimilarity(vecA: number[], vecB: number[]) {
+  /**
+   * Calculate cosine similarity between two vectors
+   */
+  private static cosineSimilarity(vecA: number[], vecB: number[]): number {
     const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
     const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
     const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
     return dotProduct / (magA * magB);
   }
 
-  private static async getRelevantContext(query: string) {
-    if (!process.env.GEMINI_API_KEY) return "Default ECI guidelines apply.";
+  /**
+   * Retrieve relevant context from knowledge base using RAG
+   */
+  private static async getRelevantContext(query: string): Promise<string> {
+    if (!process.env.GEMINI_API_KEY) {
+      return "Default ECI guidelines apply.";
+    }
 
     try {
       const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
       const queryEmbedding = (await model.embedContent(query)).embedding.values;
 
-      const similarities = this.knowledgeBase
-        .filter(f => f.embedding)
+      const similarities: SimilarityResult[] = this.knowledgeBase
+        .filter((f): f is Fact & { embedding: number[] } => !!f.embedding)
         .map(f => ({
           ...f,
-          score: this.cosineSimilarity(queryEmbedding, f.embedding!)
+          score: this.cosineSimilarity(queryEmbedding, f.embedding)
         }))
         .sort((a, b) => b.score - a.score);
 
       const topChunks = similarities.slice(0, 3);
-      if (topChunks[0]?.score < 0.6) return "No specific handbook entry found. Use general ECI guidelines.";
+      
+      if (topChunks[0]?.score < 0.6) {
+        return "No specific handbook entry found. Use general ECI guidelines.";
+      }
 
       return topChunks.map(c => `${c.text} [Source: ${c.source}]`).join('\n\n');
     } catch (error) {
@@ -87,22 +125,28 @@ export class AIService {
     }
   }
 
-  static async askFlash(query: string) {
+  /**
+   * Quick response using Flash model
+   */
+  static async askFlash(query: string): Promise<string> {
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash",
-      systemInstruction: this.systemPrompt 
+      systemInstruction: this.SYSTEM_PROMPT 
     });
 
     const result = await model.generateContent(query);
     return result.response.text();
   }
 
-  static async deepAsk(query: string) {
+  /**
+   * Detailed response using Pro model with RAG context
+   */
+  static async deepAsk(query: string): Promise<string> {
     const context = await this.getRelevantContext(query);
     
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-pro",
-      systemInstruction: this.systemPrompt 
+      systemInstruction: this.SYSTEM_PROMPT 
     });
 
     const prompt = `
@@ -119,12 +163,11 @@ export class AIService {
     return result.response.text();
   }
 
+  /**
+   * Check if query contains biased or opinion-seeking content
+   */
   static isBiased(query: string): boolean {
-    const biasKeywords = [
-      'best candidate', 'who should i vote for', 'which party', 'is bjp', 'is congress', 
-      'modi vs', 'rahul vs', 'party is better', 'vote to', 'better party', 'who will win'
-    ];
     const q = query.toLowerCase();
-    return biasKeywords.some(keyword => q.includes(keyword));
+    return this.BIAS_KEYWORDS.some(keyword => q.includes(keyword));
   }
 }
