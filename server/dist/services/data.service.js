@@ -24,10 +24,34 @@ class DataService {
             status: 'upcoming'
         },
     ];
+    // Cache for expensive operations
+    static cache = new Map();
+    static CACHE_TTL = 5 * 60 * 1000; // 5 minutes
     /**
-     * Get candidates for a specific constituency
+     * Get cached data if valid
+     */
+    static getCachedData(key) {
+        const cached = this.cache.get(key);
+        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+            return cached.data;
+        }
+        this.cache.delete(key);
+        return null;
+    }
+    /**
+     * Set cached data
+     */
+    static setCachedData(key, data) {
+        this.cache.set(key, { data, timestamp: Date.now() });
+    }
+    /**
+     * Get candidates for a specific constituency (with caching)
      */
     static async getCandidates(constituency) {
+        const cacheKey = `candidates:${constituency}`;
+        const cached = this.getCachedData(cacheKey);
+        if (cached)
+            return cached;
         try {
             if (!firebase_1.db)
                 throw new Error('DB not initialized');
@@ -35,42 +59,63 @@ class DataService {
                 .collection('candidates')
                 .where('constituency', '==', constituency)
                 .get();
+            let result;
             if (snapshot.empty) {
-                return mockDb_1.mockCandidates[constituency] || [];
+                result = mockDb_1.mockCandidates[constituency] || [];
             }
-            return snapshot.docs.map(doc => ({
-                id: parseInt(doc.id, 10) || 0,
-                ...doc.data()
-            }));
+            else {
+                result = snapshot.docs.map(doc => ({
+                    id: parseInt(doc.id, 10) || 0,
+                    ...doc.data()
+                }));
+            }
+            this.setCachedData(cacheKey, result);
+            return result;
         }
         catch (error) {
             console.warn('Firestore getCandidates failed, using mock data');
-            return mockDb_1.mockCandidates[constituency] || [];
+            const result = mockDb_1.mockCandidates[constituency] || [];
+            this.setCachedData(cacheKey, result);
+            return result;
         }
     }
     /**
-     * Get voting steps in specified language
+     * Get voting steps in specified language (with caching)
      */
     static async getVotingSteps(lang) {
+        const cacheKey = `votingSteps:${lang}`;
+        const cached = this.getCachedData(cacheKey);
+        if (cached)
+            return cached;
         try {
             if (!firebase_1.db)
                 throw new Error('DB not initialized');
             const doc = await firebase_1.db.collection('settings').doc('votingSteps').get();
+            let result;
             if (!doc.exists) {
-                return mockDb_1.votingSteps[lang] || mockDb_1.votingSteps.en;
+                result = mockDb_1.votingSteps[lang] || mockDb_1.votingSteps.en;
             }
-            const data = doc.data();
-            return data[lang] || data.en;
+            else {
+                const data = doc.data();
+                result = data[lang] || data.en;
+            }
+            this.setCachedData(cacheKey, result);
+            return result;
         }
         catch (error) {
             console.warn('Firestore getVotingSteps failed, using mock data');
-            return mockDb_1.votingSteps[lang] || mockDb_1.votingSteps.en;
+            const result = mockDb_1.votingSteps[lang] || mockDb_1.votingSteps.en;
+            this.setCachedData(cacheKey, result);
+            return result;
         }
     }
     /**
-     * Get election timeline
+     * Get election timeline (with caching)
      */
     static async getTimeline() {
+        const cached = this.getCachedData('timeline');
+        if (cached)
+            return cached;
         try {
             if (!firebase_1.db)
                 throw new Error('DB not initialized');
@@ -78,14 +123,21 @@ class DataService {
                 .collection('timeline')
                 .orderBy('date', 'asc')
                 .get();
+            let result;
             if (snapshot.empty) {
-                return this.DEFAULT_TIMELINE;
+                result = this.DEFAULT_TIMELINE;
             }
-            return snapshot.docs.map(doc => doc.data());
+            else {
+                result = snapshot.docs.map(doc => doc.data());
+            }
+            this.setCachedData('timeline', result);
+            return result;
         }
         catch (error) {
             console.warn('Firestore getTimeline failed, using mock data');
-            return this.DEFAULT_TIMELINE;
+            const result = this.DEFAULT_TIMELINE;
+            this.setCachedData('timeline', result);
+            return result;
         }
     }
 }

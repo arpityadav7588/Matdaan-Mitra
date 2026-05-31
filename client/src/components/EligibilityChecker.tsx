@@ -18,7 +18,8 @@ const EligibilityChecker: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const checkEligibility = async () => {
+  // Memoize checkEligibility to avoid recreating on every render
+  const checkEligibility = React.useCallback(async () => {
     if (!voterId) return;
     setLoading(true);
     setError('');
@@ -27,7 +28,6 @@ const EligibilityChecker: React.FC = () => {
     try {
       const hashedId = await hashVoterId(voterId);
       const res = await fetch(`${API_BASE_URL}/eligibility`, {
-
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hashedId })
@@ -44,7 +44,7 @@ const EligibilityChecker: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [voterId]);
 
   return (
     <div className="card max-w-2xl mx-auto my-8">

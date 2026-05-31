@@ -10,9 +10,8 @@ const AIChat: React.FC = () => {
   const [voiceMode, setVoiceMode] = useState(false);
   const [language, setLanguage] = useState('English');
 
-  const languages = ['English', 'Hindi', 'Tamil', 'Telugu'];
-
-  const speak = (text: string) => {
+  // Memoize speech synthesis utterance creation
+  const speak = React.useCallback((text: string) => {
     if (!('speechSynthesis' in window)) return;
     const utterance = new SpeechSynthesisUtterance(text);
     // Rough mapping for demo
@@ -22,9 +21,12 @@ const AIChat: React.FC = () => {
     else utterance.lang = 'en-IN';
     
     window.speechSynthesis.speak(utterance);
-  };
+  }, [language]);
 
-  const sendMessage = async () => {
+  const languages = ['English', 'Hindi', 'Tamil', 'Telugu'];
+
+  // Memoize sendMessage to avoid recreating on every render
+  const sendMessage = React.useCallback(async () => {
     if (!query.trim()) return;
     const userMsg = query;
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
@@ -32,11 +34,10 @@ const AIChat: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/chat`, {
-
+      const res = await fetch(`${API_BASE_URL}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: userMsg, mode: 'flash' })
+        body: JSON.stringify({ query: userMsg })
       });
       const data = await res.json();
       if (data.success) {
@@ -48,7 +49,13 @@ const AIChat: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query, voiceMode, speak]);
+
+  const handleKeyPress = React.useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  }, [sendMessage]);
 
   return (
     <div className="card h-[500px] flex flex-col my-8">
@@ -89,7 +96,7 @@ const AIChat: React.FC = () => {
           type="text" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyPress={(e: any) => e.key === 'Enter' && sendMessage()}
+          onKeyPress={handleKeyPress}
           placeholder="Ask about voting, documents, or candidates..."
           className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#FF9933] outline-none"
         />
