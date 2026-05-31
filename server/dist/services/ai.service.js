@@ -12,7 +12,7 @@ dotenv_1.default.config();
 const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 class AIService {
     static knowledgeBase = [];
-    static systemPrompt = `
+    static SYSTEM_PROMPT = `
     You are Matdaan Mitra, a strictly neutral AI assistant for the Election Commission of India.
     Your mission is to provide accurate, factual, and unbiased information about the Indian election process.
 
@@ -24,17 +24,35 @@ class AIService {
     4. CITATIONS: Every answer must cite the source from the context using the format: [Source: Name].
     5. MULTILINGUAL: If the user asks in Hindi, Tamil, or Telugu, respond accurately in that language while following all rules.
   `;
+    static BIAS_KEYWORDS = [
+        'best candidate',
+        'who should i vote for',
+        'which party',
+        'is bjp',
+        'is congress',
+        'modi vs',
+        'rahul vs',
+        'party is better',
+        'vote to',
+        'better party',
+        'who will win'
+    ];
+    /**
+     * Initialize AI service and load knowledge base
+     */
     static async initialize() {
         const dataPath = path_1.default.join(__dirname, '../data/election_facts.json');
         if (fs_1.default.existsSync(dataPath)) {
             this.knowledgeBase = JSON.parse(fs_1.default.readFileSync(dataPath, 'utf-8'));
             console.log(`📚 AI Service initialized with ${this.knowledgeBase.length} fact chunks.`);
-            // Proactively embed chunks if API key is present
             if (process.env.GEMINI_API_KEY) {
                 await this.embedKnowledgeBase();
             }
         }
     }
+    /**
+     * Generate embeddings for knowledge base
+     */
     static async embedKnowledgeBase() {
         const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
         for (const fact of this.knowledgeBase) {
@@ -48,28 +66,36 @@ class AIService {
         }
         console.log('✅ Knowledge base embedded for RAG.');
     }
+    /**
+     * Calculate cosine similarity between two vectors
+     */
     static cosineSimilarity(vecA, vecB) {
         const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
         const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
         const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
         return dotProduct / (magA * magB);
     }
+    /**
+     * Retrieve relevant context from knowledge base using RAG
+     */
     static async getRelevantContext(query) {
-        if (!process.env.GEMINI_API_KEY)
+        if (!process.env.GEMINI_API_KEY) {
             return "Default ECI guidelines apply.";
+        }
         try {
             const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
             const queryEmbedding = (await model.embedContent(query)).embedding.values;
             const similarities = this.knowledgeBase
-                .filter(f => f.embedding)
+                .filter((f) => !!f.embedding)
                 .map(f => ({
                 ...f,
                 score: this.cosineSimilarity(queryEmbedding, f.embedding)
             }))
                 .sort((a, b) => b.score - a.score);
             const topChunks = similarities.slice(0, 3);
-            if (topChunks[0]?.score < 0.6)
+            if (topChunks[0]?.score < 0.6) {
                 return "No specific handbook entry found. Use general ECI guidelines.";
+            }
             return topChunks.map(c => `${c.text} [Source: ${c.source}]`).join('\n\n');
         }
         catch (error) {
@@ -77,19 +103,25 @@ class AIService {
             return "General ECI guidelines apply.";
         }
     }
+    /**
+     * Quick response using Flash model
+     */
     static async askFlash(query) {
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash",
-            systemInstruction: this.systemPrompt
+            systemInstruction: this.SYSTEM_PROMPT
         });
         const result = await model.generateContent(query);
         return result.response.text();
     }
+    /**
+     * Detailed response using Pro model with RAG context
+     */
     static async deepAsk(query) {
         const context = await this.getRelevantContext(query);
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-pro",
-            systemInstruction: this.systemPrompt
+            systemInstruction: this.SYSTEM_PROMPT
         });
         const prompt = `
       CONTEXT FROM ECI HANDBOOKS:
@@ -103,13 +135,12 @@ class AIService {
         const result = await model.generateContent(prompt);
         return result.response.text();
     }
+    /**
+     * Check if query contains biased or opinion-seeking content
+     */
     static isBiased(query) {
-        const biasKeywords = [
-            'best candidate', 'who should i vote for', 'which party', 'is bjp', 'is congress',
-            'modi vs', 'rahul vs', 'party is better', 'vote to', 'better party', 'who will win'
-        ];
         const q = query.toLowerCase();
-        return biasKeywords.some(keyword => q.includes(keyword));
+        return this.BIAS_KEYWORDS.some(keyword => q.includes(keyword));
     }
 }
 exports.AIService = AIService;
