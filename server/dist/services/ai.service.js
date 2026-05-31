@@ -12,6 +12,8 @@ dotenv_1.default.config();
 const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 class AIService {
     static knowledgeBase = [];
+    static modelCache = new Map();
+    static embeddingModel = null;
     static SYSTEM_PROMPT = `
     You are Matdaan Mitra, a strictly neutral AI assistant for the Election Commission of India.
     Your mission is to provide accurate, factual, and unbiased information about the Indian election process.
@@ -38,6 +40,29 @@ class AIService {
         'who will win'
     ];
     /**
+     * Get cached model instance to avoid recreation
+     */
+    static getCachedModel(modelName, systemInstruction) {
+        const cacheKey = systemInstruction ? `${modelName}:${systemInstruction.slice(0, 50)}` : modelName;
+        if (!this.modelCache.has(cacheKey)) {
+            const model = genAI.getGenerativeModel({
+                model: modelName,
+                ...(systemInstruction && { systemInstruction })
+            });
+            this.modelCache.set(cacheKey, model);
+        }
+        return this.modelCache.get(cacheKey);
+    }
+    /**
+     * Get cached embedding model
+     */
+    static getEmbeddingModel() {
+        if (!this.embeddingModel) {
+            this.embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+        }
+        return this.embeddingModel;
+    }
+    /**
      * Initialize AI service and load knowledge base
      */
     static async initialize() {
@@ -51,42 +76,54 @@ class AIService {
         }
     }
     /**
-     * Generate embeddings for knowledge base
+     * Generate embeddings for knowledge base with parallel processing
      */
     static async embedKnowledgeBase() {
-        const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
-        for (const fact of this.knowledgeBase) {
-            try {
-                const result = await model.embedContent(fact.text);
-                fact.embedding = result.embedding.values;
-            }
-            catch (err) {
-                console.warn(`Failed to embed chunk ${fact.id}`);
-            }
+        const model = this.getEmbeddingModel();
+        const batchSize = 5;
+        for (let i = 0; i < this.knowledgeBase.length; i += batchSize) {
+            const batch = this.knowledgeBase.slice(i, i + batchSize);
+            await Promise.all(batch.map(async (fact) => {
+                try {
+                    const result = await model.embedContent(fact.text);
+                    fact.embedding = result.embedding.values;
+                }
+                catch (err) {
+                    console.warn(`Failed to embed chunk ${fact.id}`);
+                }
+            }));
         }
         console.log('✅ Knowledge base embedded for RAG.');
     }
     /**
-     * Calculate cosine similarity between two vectors
+     * Calculate cosine similarity between two vectors (optimized)
      */
     static cosineSimilarity(vecA, vecB) {
-        const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
-        const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
-        const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
-        return dotProduct / (magA * magB);
+        let dotProduct = 0;
+        let magA = 0;
+        let magB = 0;
+        const len = vecA.length;
+        for (let i = 0; i < len; i++) {
+            dotProduct += vecA[i] * vecB[i];
+            magA += vecA[i] * vecA[i];
+            magB += vecB[i] * vecB[i];
+        }
+        const denominator = Math.sqrt(magA) * Math.sqrt(magB);
+        return denominator === 0 ? 0 : dotProduct / denominator;
     }
     /**
-     * Retrieve relevant context from knowledge base using RAG
+     * Retrieve relevant context from knowledge base using RAG (optimized)
      */
     static async getRelevantContext(query) {
         if (!process.env.GEMINI_API_KEY) {
             return "Default ECI guidelines apply.";
         }
         try {
-            const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+            const model = this.getEmbeddingModel();
             const queryEmbedding = (await model.embedContent(query)).embedding.values;
-            const similarities = this.knowledgeBase
-                .filter((f) => !!f.embedding)
+            // Pre-filter facts with embeddings to avoid repeated checks
+            const factsWithEmbeddings = this.knowledgeBase.filter((f) => !!f.embedding);
+            const similarities = factsWithEmbeddings
                 .map(f => ({
                 ...f,
                 score: this.cosineSimilarity(queryEmbedding, f.embedding)
@@ -104,25 +141,19 @@ class AIService {
         }
     }
     /**
-     * Quick response using Flash model
+     * Quick response using Flash model (with caching)
      */
     static async askFlash(query) {
-        const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
-            systemInstruction: this.SYSTEM_PROMPT
-        });
+        const model = this.getCachedModel("gemini-1.5-flash", this.SYSTEM_PROMPT);
         const result = await model.generateContent(query);
         return result.response.text();
     }
     /**
-     * Detailed response using Pro model with RAG context
+     * Detailed response using Pro model with RAG context (with caching)
      */
     static async deepAsk(query) {
         const context = await this.getRelevantContext(query);
-        const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-pro",
-            systemInstruction: this.SYSTEM_PROMPT
-        });
+        const model = this.getCachedModel("gemini-1.5-pro", this.SYSTEM_PROMPT);
         const prompt = `
       CONTEXT FROM ECI HANDBOOKS:
       ${context}

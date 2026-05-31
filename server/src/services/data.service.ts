@@ -46,10 +46,37 @@ export class DataService {
     },
   ];
 
+  // Cache for expensive operations
+  private static cache: Map<string, { data: any; timestamp: number }> = new Map();
+  private static readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   /**
-   * Get candidates for a specific constituency
+   * Get cached data if valid
+   */
+  private static getCachedData<T>(key: string): T | null {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.data as T;
+    }
+    this.cache.delete(key);
+    return null;
+  }
+
+  /**
+   * Set cached data
+   */
+  private static setCachedData(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  /**
+   * Get candidates for a specific constituency (with caching)
    */
   static async getCandidates(constituency: string): Promise<Candidate[]> {
+    const cacheKey = `candidates:${constituency}`;
+    const cached = this.getCachedData<Candidate[]>(cacheKey);
+    if (cached) return cached;
+
     try {
       if (!db) throw new Error('DB not initialized');
       
@@ -58,47 +85,66 @@ export class DataService {
         .where('constituency', '==', constituency)
         .get();
       
+      let result: Candidate[];
       if (snapshot.empty) {
-        return (mockCandidates as any)[constituency] || [];
+        result = (mockCandidates as any)[constituency] || [];
+      } else {
+        result = snapshot.docs.map(doc => ({ 
+          id: parseInt(doc.id, 10) || 0, 
+          ...doc.data() 
+        } as Candidate));
       }
-      
-      return snapshot.docs.map(doc => ({ 
-        id: parseInt(doc.id, 10) || 0, 
-        ...doc.data() 
-      } as Candidate));
+
+      this.setCachedData(cacheKey, result);
+      return result;
     } catch (error) {
       console.warn('Firestore getCandidates failed, using mock data');
-      return (mockCandidates as any)[constituency] || [];
+      const result = (mockCandidates as any)[constituency] || [];
+      this.setCachedData(cacheKey, result);
+      return result;
     }
   }
 
   /**
-   * Get voting steps in specified language
+   * Get voting steps in specified language (with caching)
    */
   static async getVotingSteps(
     lang: 'en' | 'hi' | 'ta' | 'te'
   ): Promise<VotingStep[]> {
+    const cacheKey = `votingSteps:${lang}`;
+    const cached = this.getCachedData<VotingStep[]>(cacheKey);
+    if (cached) return cached;
+
     try {
       if (!db) throw new Error('DB not initialized');
       
       const doc = await db.collection('settings').doc('votingSteps').get();
       
+      let result: VotingStep[];
       if (!doc.exists) {
-        return (votingSteps as any)[lang] || votingSteps.en;
+        result = (votingSteps as any)[lang] || votingSteps.en;
+      } else {
+        const data = doc.data();
+        result = (data as any)[lang] || (data as any).en;
       }
-      
-      const data = doc.data();
-      return (data as any)[lang] || (data as any).en;
+
+      this.setCachedData(cacheKey, result);
+      return result;
     } catch (error) {
       console.warn('Firestore getVotingSteps failed, using mock data');
-      return (votingSteps as any)[lang] || votingSteps.en;
+      const result = (votingSteps as any)[lang] || votingSteps.en;
+      this.setCachedData(cacheKey, result);
+      return result;
     }
   }
 
   /**
-   * Get election timeline
+   * Get election timeline (with caching)
    */
   static async getTimeline(): Promise<TimelineItem[]> {
+    const cached = this.getCachedData<TimelineItem[]>('timeline');
+    if (cached) return cached;
+
     try {
       if (!db) throw new Error('DB not initialized');
       
@@ -107,14 +153,20 @@ export class DataService {
         .orderBy('date', 'asc')
         .get();
       
+      let result: TimelineItem[];
       if (snapshot.empty) {
-        return this.DEFAULT_TIMELINE;
+        result = this.DEFAULT_TIMELINE;
+      } else {
+        result = snapshot.docs.map(doc => doc.data() as TimelineItem);
       }
-      
-      return snapshot.docs.map(doc => doc.data() as TimelineItem);
+
+      this.setCachedData('timeline', result);
+      return result;
     } catch (error) {
       console.warn('Firestore getTimeline failed, using mock data');
-      return this.DEFAULT_TIMELINE;
+      const result = this.DEFAULT_TIMELINE;
+      this.setCachedData('timeline', result);
+      return result;
     }
   }
 }
